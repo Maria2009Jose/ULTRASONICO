@@ -1,1 +1,84 @@
 # ULTRASONICO
+#include "WiFi.h"
+#include <ThingerESP32.h>
+
+// ===============================
+// CREDENCIALES THINGER
+// ===============================
+#define usuario "majochaca"
+#define device_Id "ultrasonico"
+#define device_credentials "123456"
+
+ThingerESP32 thing(usuario, device_Id, device_credentials);
+
+// ===============================
+// WIFI
+// ===============================
+const char WiFi_ssid[] = "Likenet-Sopita Mix";
+const char WiFi_password[] = "0104767447";
+
+// ===============================
+// PINES ULTRASONICO
+// ===============================
+#define TRIG_PIN 16
+#define ECHO_PIN 17
+
+float distancia_cm = 0;
+unsigned long last_send = 0;
+
+// ===============================
+// MEDIR DISTANCIA
+// ===============================
+float medirDistancia() {
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  long duracion = pulseIn(ECHO_PIN, HIGH, 30000);
+  if (duracion == 0) return -1;
+
+  return duracion * 0.0343 / 2.0;
+}
+
+// ===============================
+// SETUP
+// ===============================
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+  thing.add_wifi(WiFi_ssid, WiFi_password);
+
+  // Recurso para widgets simples
+  thing["distancia_cm"] >> outputValue(distancia_cm);
+}
+
+// ===============================
+// LOOP
+// ===============================
+void loop() {
+  thing.handle();  // ⚠️ SIEMPRE PRIMERO
+
+  distancia_cm = medirDistancia();
+
+  Serial.print("Distancia: ");
+  Serial.print(distancia_cm);
+  Serial.println(" cm");
+
+  // Enviar al bucket cada 2 segundos
+  if (millis() - last_send > 2000) {
+    last_send = millis();
+
+    pson data;
+    data["distancia"] = distancia_cm;
+
+    thing.write_bucket("datosDistancia", data);
+
+    Serial.println("Dato enviado al bucket");
+  }
+}
